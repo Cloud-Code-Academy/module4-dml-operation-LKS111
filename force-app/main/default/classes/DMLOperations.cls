@@ -144,6 +144,9 @@ public with sharing class DMLOperations {
         // Update the Account with the given Id with the new name and industry
         accountToUpdate.Name = newName;
         accountToUpdate.Industry = newIndustry;
+
+        // Perform DML operation to save changes
+        update accountToUpdate;
     }
 
 
@@ -189,25 +192,45 @@ public with sharing class DMLOperations {
      */
     public static void upsertOpportunities(String accountName, List<String> oppNames) 
     {
-        // Loop through each Opportunity name
+        // Upsert the account and get the Account Id
+        Account account = upsertAccount(accountName);
+
+        // Retrieve existing opportunities associated with the account
+        Map<String, Opportunity> existingOpportunitiesMap = new Map<String, Opportunity>();
+        for (Opportunity opp : [SELECT Id, Name FROM Opportunity WHERE AccountId = :account.Id AND Name IN :oppNames]) 
+        {
+            existingOpportunitiesMap.put(opp.Name, opp);
+        }
+
+        // List to hold opportunities to be inserted or updated
         List<Opportunity> opportunitiesToUpsert = new List<Opportunity>();
-    
+
+        // Loop through each Opportunity name
         for (String oppName : oppNames) 
         {
-            // Create an Opportunity with the given name
-            Opportunity opp = new Opportunity(
-                Name = oppName,
-                AccountId = upsertAccount(accountName).Id, // Use the upsertAccount method to get or create the Account and get its Id
-                StageName = 'Qualification', // Default StageName
-                CloseDate = Date.today().addMonths(3), // Close Date set to 3 months from today
-                Amount = 50000 // Default Amount
-            );
-            // Create an Opportunity with the given name
-            // Add the Opportunity to the list
+            Opportunity opp;
+            // Check if an Opportunity with the given name already exists
+            if (existingOpportunitiesMap.containsKey(oppName)) 
+            {
+                // If it exists, get the existing Opportunity
+                opp = existingOpportunitiesMap.get(oppName);
+            } 
+                else 
+            {
+                // Create a new Opportunity if it does not exist
+                opp = new Opportunity(
+                    Name = oppName,
+                    AccountId = account.Id, // Use the upserted account's Id
+                    StageName = 'Qualification', // Default StageName
+                    CloseDate = Date.today().addMonths(3), // Close Date set to 3 months from today
+                    Amount = 50000 // Default Amount
+                );
+            }
+
             opportunitiesToUpsert.add(opp);
-    }
-        // Upsert the opportunities to the database
-    upsert opportunitiesToUpsert;
+        }
+            // Upsert the opportunities to the database
+            upsert opportunitiesToUpsert;
 }
 
     
